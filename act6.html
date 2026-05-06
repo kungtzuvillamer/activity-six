@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noun Sorting Game</title>
+    <style>
+        :root {
+            --countable-color: #3498db;
+            --uncountable-color: #e67e22;
+        }
+        body { 
+            font-family: 'Arial Rounded MT Bold', Arial, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            background-color: #2c3e50; 
+            margin: 0; 
+            height: 100vh; 
+            overflow: hidden; 
+            color: white;
+        }
+
+        #fullscreen-btn {
+            padding: 25px 50px;
+            font-size: 28px;
+            font-weight: bold;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            margin-top: 20%;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            transition: transform 0.2s;
+        }
+
+        #fullscreen-btn:active {
+            transform: scale(0.95);
+        }
+
+        .game-container { 
+            display: none; 
+            justify-content: space-between; 
+            width: 100vw; 
+            height: 100vh; 
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .drop-zone {
+            width: 38%;
+            height: 90%;
+            border: 6px dashed rgba(255,255,255,0.3);
+            border-radius: 40px;
+            background-color: rgba(255,255,255,0.05);
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            position: relative;
+        }
+
+        .drop-zone h2 {
+            font-size: 3.5rem;
+            margin: 20px 0;
+            text-transform: lowercase; 
+            font-weight: normal;
+        }
+
+        #left-box h2 { color: var(--countable-color); }
+        #right-box h2 { color: var(--uncountable-color); }
+
+        .center-display {
+            width: 20%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .food-item {
+            width: 280px;
+            height: 280px;
+            object-fit: contain;
+            background: white;
+            padding: 15px;
+            border-radius: 30px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+            cursor: grab;
+            touch-action: none;
+        }
+
+        .feedback-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 180px;
+            display: none;
+            z-index: 100;
+            text-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        .items-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .placed-item {
+            width: 70px;
+            height: 70px;
+            object-fit: contain;
+            background: white;
+            border-radius: 12px;
+            padding: 5px;
+        }
+
+        #win-message {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #27ae60;
+            padding: 60px;
+            border-radius: 40px;
+            text-align: center;
+            font-size: 3.5rem;
+            box-shadow: 0 0 60px rgba(0,0,0,0.7);
+            z-index: 200;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="fullscreen-btn">View Full Screen</button>
+
+    <div id="win-message">You did great! 🎉</div>
+
+    <div class="game-container" id="game-ui">
+        <div id="left-box" class="drop-zone" data-type="countable">
+            <h2>a/an/number</h2>
+            <div class="feedback-icon" id="check-left">✅</div>
+            <div class="feedback-icon" id="x-left">❌</div>
+            <div class="items-container" id="left-items"></div>
+        </div>
+
+        <div class="center-display" id="pantry"></div>
+
+        <div id="right-box" class="drop-zone" data-type="uncountable">
+            <h2>some</h2>
+            <div class="feedback-icon" id="check-right">✅</div>
+            <div class="feedback-icon" id="x-right">❌</div>
+            <div class="items-container" id="right-items"></div>
+        </div>
+    </div>
+
+    <audio id="sound-correct" src="https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3"></audio>
+    <audio id="sound-wrong" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3"></audio>
+
+    <script>
+        let inventory = [
+            { src: 'https://ik.imagekit.io/3cmdu72xx/a%20hot%20dog.png', type: 'countable' },
+            { src: 'https://ik.imagekit.io/3cmdu72xx/milk.png', type: 'uncountable' },
+            { src: 'https://ik.imagekit.io/3cmdu72xx/a%20hamburger.png', type: 'countable' },
+            { src: 'https://ik.imagekit.io/3cmdu72xx/water.png', type: 'uncountable' },
+            { src: 'https://ik.imagekit.io/3cmdu72xx/two%20hot%20dogs.png', type: 'countable' },
+            { src: 'https://ik.imagekit.io/3cmdu72xx/juice.png', type: 'uncountable' },
+            { src: 'https://ik.imagekit.io/3cmdu72xx/salad.avif', type: 'uncountable' },
+            { src: 'https://ik.imagekit.io/3cmdu72xx/2%20hamburgers.png', type: 'countable' },
+            { src: 'https://ik.imagekit.io/3cmdu72xx/ice%20cream.png', type: 'uncountable' }
+        ];
+
+        // Shuffle logic
+        inventory = inventory.sort(() => Math.random() - 0.5);
+
+        let currentIndex = 0;
+        const gameUI = document.getElementById('game-ui');
+        const pantry = document.getElementById('pantry');
+        const fsBtn = document.getElementById('fullscreen-btn');
+
+        fsBtn.onclick = () => {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.webkitRequestFullscreen) { /* Safari support */
+                document.documentElement.webkitRequestFullscreen();
+            }
+            fsBtn.style.display = 'none';
+            gameUI.style.display = 'flex';
+            loadNextItem();
+        };
+
+        function loadNextItem() {
+            if (currentIndex >= inventory.length) {
+                document.getElementById('win-message').style.display = 'block';
+                return;
+            }
+
+            pantry.innerHTML = '';
+            const itemData = inventory[currentIndex];
+            const img = document.createElement('img');
+            img.src = itemData.src;
+            img.className = 'food-item';
+            img.draggable = true;
+            img.dataset.answer = itemData.type;
+            
+            img.ondragstart = (e) => e.dataTransfer.setData("text", itemData.type);
+            img.ontouchstart = (e) => { window.currentTouchItem = img; };
+            img.ontouchend = handleTouchEnd;
+
+            pantry.appendChild(img);
+        }
+
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            zone.ondragover = (e) => e.preventDefault();
+            zone.ondrop = (e) => {
+                const answer = e.dataTransfer.getData("text");
+                validate(zone, answer);
+            };
+        });
+
+        function handleTouchEnd(e) {
+            let touch = e.changedTouches[0];
+            let target = document.elementFromPoint(touch.clientX, touch.clientY);
+            let zone = target ? target.closest('.drop-zone') : null;
+            if (zone) {
+                validate(zone, window.currentTouchItem.dataset.answer);
+            }
+        }
+
+        function validate(zone, answer) {
+            const isCorrect = zone.dataset.type === answer;
+            const sound = document.getElementById(isCorrect ? 'sound-correct' : 'sound-wrong');
+            const feedback = zone.querySelector(isCorrect ? '.feedback-icon[id^="check"]' : '.feedback-icon[id^="x"]');
+            
+            sound.play();
+            feedback.style.display = 'block';
+            setTimeout(() => feedback.style.display = 'none', 800);
+
+            if (isCorrect) {
+                const thumb = document.createElement('img');
+                thumb.src = inventory[currentIndex].src;
+                thumb.className = 'placed-item';
+                zone.querySelector('.items-container').appendChild(thumb);
+                
+                currentIndex++;
+                setTimeout(loadNextItem, 500);
+            }
+        }
+    </script>
+</body>
+</html>
